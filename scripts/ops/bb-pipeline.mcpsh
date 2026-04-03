@@ -1,0 +1,75 @@
+#!/usr/bin/env -S mcphost script
+---
+model: ollama:qwen2.5-coder:7b
+maxSteps: 60
+approveToolRun: true
+
+# You pass args on the command line:
+#   --args:target example.com
+#   --args:program acme
+#   --args:workdir /home/sbu/bb
+#   --args:shodan_query 'hostname:example.com'
+args:
+  target: "${target}"
+  program: "${program:-default}"
+  workdir: "${workdir:-/home/sbu/bb}"
+  shodan_query: "${shodan_query:-}"
+
+systemPrompt: |
+  You are an assistant running an authorized security assessment.
+  Do not run any actions unless they are in-scope for the provided target.
+  Prefer low-impact recon and report generation. Write all outputs to disk.
+
+prompt: |
+  Target: ${target}
+  Program: ${program}
+  Workspace: ${workdir}/${program}/${target}
+
+  Create this directory structure using filesystem:
+    ${workdir}/${program}/${target}/
+      scope/
+      recon/raw/
+      recon/clean/
+      recon/live/
+      vuln/nuclei/
+      intel/shodan/
+      report/
+      logs/
+
+  Write a file ${workdir}/${program}/${target}/scope/target.txt containing ${target}.
+  Create report skeleton files:
+    report/summary.md
+    report/assets.md
+    report/recon.md
+    report/findings.md
+    report/repro.md
+    report/mitigations.md
+    report/timeline.md
+
+  Save a memory key "bb.current" with value "${program}:${target}".
+
+  Recon phase (ProjectDiscovery MCP):
+    1) Enumerate subdomains for ${target}. Save raw output to recon/raw/subfinder.txt.
+    2) Probe discovered hosts for HTTP(S). Save raw output to recon/raw/httpx.txt.
+    3) Normalize/clean host list into recon/clean/hosts.txt (one host per line).
+    4) Crawl discovered live hosts (katana if available). Save to recon/raw/katana.txt.
+       Extract URLs into recon/clean/urls.txt.
+
+  Vulnerability triage phase (ProjectDiscovery MCP):
+    5) Run nuclei against recon/clean/hosts.txt with a conservative rate.
+       Save results to vuln/nuclei/nuclei.txt.
+
+  Enrichment phase (Shodan MCP) — only if ${shodan_query} is not empty:
+    6) Run the Shodan query "${shodan_query}" and save results summary to intel/shodan/shodan.md.
+
+  Reporting phase (filesystem + sequentialthinking):
+    7) In report/recon.md: summarize subdomain count, live hosts count, top technologies observed.
+    8) In report/findings.md: summarize nuclei findings grouped by severity/template.
+       If no findings, say so and list next manual checks to perform.
+    9) In report/summary.md: write an executive summary (scope, methods, key outcomes).
+    10) In report/timeline.md: write a timestamped log of actions performed.
+
+  End by writing a one-paragraph "Next Actions" section in report/summary.md that lists:
+    - highest-value manual followups from the recon artifacts
+    - what evidence to capture for any suspected issues
+---

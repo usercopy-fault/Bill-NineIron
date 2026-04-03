@@ -1,0 +1,19 @@
+{
+  "hook_port": 9800,
+  "callback_port": 9801,
+  "dns_log_port": 5353,
+  "secret": "change-me",
+  "notify": "auto",
+  "empire_url": "http://127.0.0.1:1337",
+  "empire_token": "",
+  "havoc_host": "127.0.0.1",
+  "havoc_port": 40056,
+  "villain_host": "127.0.0.1",
+  "villain_port": 6501,
+  "tailscale_ip": "100.64.0.10",
+  "alert_devices": [
+    "-p 8022 operator@100.64.0.20"
+  ],
+  "hooks_enabled": true,
+  "version": "2.0.0"
+}

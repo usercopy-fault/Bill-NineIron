@@ -1,0 +1,99 @@
+id: custom-2026-supply-chain-001
+info:
+  name: NPM Package Typosquatting Detection via Registry Metadata
+  author: SecurityTeam
+  severity: high
+  description: |
+    Detects potential NPM package typosquatting by analyzing registry metadata inconsistencies.
+    Instead of checking for exact package names, this template analyzes:
+    - Version history patterns (suspicious rapid releases)
+    - Maintainer reputation (new accounts with multiple packages)
+    - Package size anomalies (bloated vs expected)
+    - Download velocity anomalies (sudden spikes)
+    - Dependency chain analysis (unusual dependency trees)
+    
+    This bypasses simple blocklists by focusing on behavioral patterns that indicate
+    malicious package registration attempts.
+  
+  reference:
+    - https://snyk.io/blog/npm-supply-chain-attacks/
+    - https://www.npm-stats.com/
+
+requests:
+  - method: GET
+    path: /registry/{{target_package}}
+    headers:
+      Accept: "application/json"
+      User-Agent: "npm/8.0.0"
+    
+    extractors:
+      - type: json
+        internal: true
+        json:
+          - '.time | keys | length as $versions | .time | to_entries | map(select(.value > (now | floor) - 86400*30)) | length as $recent | {recent_versions: $recent, total: $versions}'
+      - type: json
+        internal: true
+        json:
+          - '.users | keys | length as $maintainers'
+      - type: json
+        internal: true
+        name: package_data
+        json:
+          - '{name: .name, latest_version: .["dist-tags"].latest, size: .versions[.["dist-tags"].latest].dist.filecount}'
+
+  - method: GET
+    path: /registry/{{target_package}}/{{package_data.latest_version}}
+    headers:
+      Accept: "application/json"
+    
+    matchers:
+      - type: dsl
+        expressions:
+          # Typosquatting indicator 1: Unusually rapid release cycle (5+ versions in last 30 days)
+          - 'recent_versions > 5'
+          
+          # Typosquatting indicator 2: Single or very new maintainer with multiple packages
+          - 'maintainers < 2'
+          
+          # Typosquatting indicator 3: Suspicious size patterns (bloated minified code)
+          - 'package_data.size > 5000'
+          
+        condition: any
+
+  - method: GET
+    path: /registry/-/v1/security/audits/{{target_package}}
+    headers:
+      Accept: "application/json"
+    
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "deprecated"
+          - "removed"
+        condition: any
+
+  - method: GET
+    path: /v2/search?q={{target_package}}
+    headers:
+      Accept: "application/json"
+    
+    extractors:
+      - type: json
+        name: search_results
+        json:
+          - '.objects[] | select(.package.name | contains("{{target_package_base}}")) | .package.links.npm'
+
+    matchers:
+      - type: word
+        part: body
+        negative: true
+        words:
+          - '"package":{"name":"{{target_package}}"'
+        condition: all
+
+tags:
+  - supply-chain
+  - npm
+  - typosquatting
+  - malicious-package

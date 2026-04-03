@@ -1,0 +1,77 @@
+id: custom-2026-api-003
+info:
+  name: API Key Leakage via Metadata Headers
+  author: SecurityTeam
+  severity: critical
+  description: |
+    Detects API keys leaked in non-standard locations:
+    - X-API-Key-Timestamp headers
+    - X-Internal-Key headers
+    - X-Dev-Key headers  
+    - Embedded in User-Agent strings
+    - In cache-control directives
+    - In error messages with debug mode
+    - In response headers (Server, X-Powered-By timing)
+    
+    Uses behavioral analysis:
+    - Request/response timing reveals authentication validation
+    - Specific error messages indicate key validity
+    - Debug headers leak internal infrastructure
+  
+  reference:
+    - https://github.com/trufflesecurity/trufflehog
+
+requests:
+  - method: GET
+    path: /api/v1/admin
+    headers:
+      X-Internal-Auth: "true"
+    
+    matchers:
+      - type: word
+        part: header
+        words:
+          - "X-API-Key"
+          - "X-Internal-Key"
+          - "Authorization"
+
+  - method: OPTIONS
+    path: /api/v1
+    headers:
+      Accept: "*/*"
+    
+    extractors:
+      - type: regex
+        part: header
+        regex:
+          - 'X-[A-Za-z-]*-Key:\s*([a-zA-Z0-9_\-\.]+)'
+          - 'X-[A-Za-z-]*-Token:\s*([a-zA-Z0-9_\-\.]+)'
+
+  - method: GET
+    path: /api/v1/test
+    headers:
+      Debug: "true"
+      X-Debug-Mode: "enabled"
+    
+    matchers:
+      - type: regex
+        part: body
+        regex:
+          - '"api_key":\s*"([a-zA-Z0-9_\-\.]+)"'
+          - '"secret":\s*"([a-zA-Z0-9_\-\.]+)"'
+          - '"token":\s*"([a-zA-Z0-9_\-\.]+)"'
+
+  - method: GET
+    path: /.git/config
+    
+    matchers:
+      - type: regex
+        part: body
+        regex:
+          - 'token\s*=\s*([a-zA-Z0-9_\-\.]+)'
+
+tags:
+  - api
+  - credentials
+  - information-disclosure
+  - hardcoded-secrets

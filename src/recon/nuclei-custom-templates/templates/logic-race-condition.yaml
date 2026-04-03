@@ -1,0 +1,57 @@
+id: custom-2026-logic-001
+info:
+  name: Race Condition in Transaction Processing - Concurrency Flaw
+  author: SecurityTeam
+  severity: critical
+  description: |
+    Exploits race conditions in financial/inventory transactions:
+    1. Send concurrent requests for same resource
+    2. Both requests pass validation simultaneously
+    3. Both requests execute without proper locking
+    4. Result: Overdraft, double-spending, inventory overflow
+    
+    Detection method:
+    - Send parallel requests to same endpoint
+    - Measure response times and ordering
+    - Analyze database consistency
+    - Test resource state after concurrent operations
+  
+  reference:
+    - https://portswigger.net/web-security/race-conditions
+
+requests:
+  - method: POST
+    path: /api/payment/process
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "amount": 100,
+        "account_id": "{{account_id}}"
+      }
+    attack: clusterbomb
+    payloads:
+      iteration:
+        - range(1, 10)
+    
+    matchers:
+      - type: word
+        part: body
+        words:
+          - '"success":true'
+
+  - method: GET
+    path: /api/account/{{account_id}}/balance
+    
+    matchers:
+      - type: dsl
+        expressions:
+          # Balance should be negative if race condition exists
+          - 'tonumber(balance) < 0'
+        condition: all
+
+tags:
+  - logic-flaw
+  - race-condition
+  - financial-vulnerability
+  - concurrency

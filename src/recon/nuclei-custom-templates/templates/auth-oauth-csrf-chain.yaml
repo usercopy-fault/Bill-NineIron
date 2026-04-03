@@ -1,0 +1,60 @@
+id: custom-2026-auth-002
+info:
+  name: OAuth State Parameter CSRF - Redirect Chain Attack
+  author: SecurityTeam
+  severity: high
+  description: |
+    Exploits OAuth state parameter mishandling via redirect chaining:
+    1. OAuth provider (Google, GitHub) returns auth code
+    2. Application ignores state parameter validation
+    3. Attacker intercepts and replaces callback URL
+    4. User session established without proper validation
+    5. Cross-site request forgery possible
+    
+    Detection method:
+    - Attempt OAuth flow without state parameter
+    - Attempt OAuth with modified state parameter
+    - Attempt OAuth redirect to attacker-controlled domain
+    - Check for CSRF token validation gaps
+  
+  reference:
+    - https://owasp.org/www-community/attacks/csrf
+
+requests:
+  - method: GET
+    path: /oauth/authorize
+    query_string: "client_id={{client_id}}&redirect_uri={{attacker_domain}}&response_type=code&scope=email"
+    
+    matchers:
+      - type: word
+        part: header
+        words:
+          - "Location"
+
+  - method: GET
+    path: /oauth/callback
+    query_string: "code={{auth_code}}&state={{attacker_state}}"
+    
+    matchers:
+      - type: dsl
+        expressions:
+          # Session established without state validation
+          - 'contains(header, "Set-Cookie")'
+          - 'status == 302 OR status == 200'
+        condition: all
+
+  - method: GET
+    path: /oauth/authorize
+    query_string: "client_id={{client_id}}&redirect_uri={{application_domain}}/callback?redirect={{attacker_domain}}&response_type=code"
+    
+    matchers:
+      - type: word
+        part: header
+        words:
+          - "Location: {{attacker_domain}}"
+
+tags:
+  - authentication
+  - oauth
+  - csrf
+  - state-parameter

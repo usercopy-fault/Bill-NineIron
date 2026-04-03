@@ -1,0 +1,67 @@
+id: custom-2026-logic-002
+info:
+  name: Business Logic State Machine Bypass - Workflow Manipulation
+  author: SecurityTeam
+  severity: high
+  description: |
+    Exploits state machine bypass in business workflows:
+    1. Workflow: Draft → Review → Approve → Execute
+    2. Skip validation step: Draft → Execute directly
+    3. Bypass approval requirement
+    4. Execute unauthorized actions
+    
+    Detection method:
+    - Enumerate workflow states
+    - Attempt state transitions not in normal flow
+    - Test parameter manipulation to skip states
+    - Verify authorization at each state
+
+requests:
+  - method: POST
+    path: /api/workflow/create
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "action": "create_user",
+        "data": {"email": "{{email}}"}
+      }
+    
+    extractors:
+      - type: json
+        internal: true
+        name: workflow_id
+        json:
+          - '.workflow_id'
+
+  - method: POST
+    path: /api/workflow/{{workflow_id}}/state
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "state": "executed"
+      }
+    
+    matchers:
+      - type: word
+        part: body
+        words:
+          - '"success":true'
+          - '"executed"'
+        condition: any
+
+  - method: GET
+    path: /api/users/{{email}}
+    
+    matchers:
+      - type: word
+        part: body
+        words:
+          - '"email":"{{email}}"'
+
+tags:
+  - logic-flaw
+  - workflow-bypass
+  - authorization-bypass
+  - state-machine

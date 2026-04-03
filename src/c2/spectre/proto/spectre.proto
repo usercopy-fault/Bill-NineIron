@@ -1,0 +1,250 @@
+syntax = "proto3";
+package spectre;
+option go_package = "github.com/sbu/spectre-c2/pkg/proto";
+
+// ── Agent Identity ───────────────────────────────────────────────
+
+message AgentInfo {
+  string agent_id      = 1;
+  string hostname      = 2;
+  string os            = 3;
+  string arch          = 4;
+  int32  cpu_cores     = 5;
+  int64  ram_bytes     = 6;
+  repeated string tags = 7;
+  string tailscale_ip  = 8;
+  string nebula_ip     = 9;
+  string version       = 10;
+  AgentMode mode       = 11;
+}
+
+enum AgentMode {
+  AGENT_MODE_UNSPECIFIED = 0;
+  AGENT_MODE_SESSION     = 1;
+  AGENT_MODE_BEACON      = 2;
+}
+
+// ── Beacon Configuration ─────────────────────────────────────────
+
+message BeaconConfig {
+  int64  sleep_seconds = 1;
+  double jitter_pct    = 2;
+  int64  kill_date_unix = 3;
+  string profile_name  = 4;
+}
+
+// ── Malleable C2 Profile ─────────────────────────────────────────
+
+message MalleableProfile {
+  string name                 = 1;
+  string user_agent           = 2;
+  string uri_path             = 3;
+  map<string, string> headers = 4;
+  string sleep_mask           = 5;
+  bool   use_ssl              = 6;
+}
+
+// ── Agent Metrics ────────────────────────────────────────────────
+
+message AgentMetrics {
+  string agent_id     = 1;
+  string agent_name   = 2;  // keep existing
+  float  cpu_pct      = 3;
+  float  mem_pct      = 4;
+  float  disk_pct     = 5;
+  float  load_1m      = 6;
+  int64  timestamp    = 7;
+  AgentMode mode      = 8;
+  // Registration fields (populated on first connect, can be empty on subsequent heartbeats)
+  string hostname     = 9;
+  string os           = 10;
+  string arch         = 11;
+  int32  cpu_cores    = 12;
+  int64  ram_bytes    = 13;
+  repeated string tags = 14;
+  string tailscale_ip = 15;
+  string nebula_ip    = 16;
+  string version      = 17;
+}
+
+// ── Tasks ────────────────────────────────────────────────────────
+
+enum TaskType {
+  TASK_EXEC            = 0;
+  TASK_SPECTRE_RECON   = 1;
+  TASK_SPECTRE_SCAN    = 2;
+  TASK_SPECTRE_FUZZ    = 3;
+  TASK_SPECTRE_EXPLOIT = 4;
+  TASK_PLUGIN          = 5;
+  TASK_UPLOAD          = 6;
+  TASK_DOWNLOAD        = 7;
+  TASK_SHELL           = 8;
+}
+
+message TaskRequest {
+  string          task_id     = 1;
+  string          session_id  = 2;
+  TaskType        type        = 3;
+  repeated string args        = 4;
+  int64           timeout_sec = 5;
+  string          operator_id = 6;
+  bytes           payload     = 7;
+}
+
+message TaskOutput {
+  string         task_id  = 1;
+  string         agent_id = 2;
+  bytes          chunk    = 3;
+  bool           is_stderr = 4;
+  bool           is_done  = 5;
+  int32          exit_code = 6;
+  int64          timestamp = 7;
+  string         structured = 8;
+  TaskOutputType out_type  = 9;
+}
+
+enum TaskOutputType {
+  OUTPUT_RAW     = 0;
+  OUTPUT_FINDING = 1;
+  OUTPUT_TABLE   = 2;
+  OUTPUT_FILE    = 3;
+}
+
+// ── Findings ─────────────────────────────────────────────────────
+
+message Finding {
+  string          finding_id   = 1;
+  string          session_id   = 2;
+  string          agent_id     = 3;
+  string          host_ip      = 4;
+  int32           port         = 5;
+  string          severity     = 6;
+  string          title        = 7;
+  string          detail       = 8;
+  float           cvss_score   = 9;
+  repeated string cve_refs     = 10;
+  string          raw_request  = 11;
+  string          raw_response = 12;
+  string          module       = 13;
+}
+
+// ── Session Defender ─────────────────────────────────────────────
+
+message DefenderRule {
+  string id          = 1;
+  string pattern     = 2;
+  string description = 3;
+  bool   is_blocked  = 4;
+}
+
+message ValidateCommandRequest {
+  string          operator_id  = 1;
+  TaskType        type         = 2;
+  repeated string args         = 3;
+  string          target_agent = 4;
+}
+
+message ValidateCommandResponse {
+  bool   allowed         = 1;
+  string warning         = 2;
+  string block_reason    = 3;
+  string matched_rule_id = 4;
+}
+
+// ── Events ───────────────────────────────────────────────────────
+
+enum EventType {
+  EVENT_AGENT_CONNECTED    = 0;
+  EVENT_AGENT_DISCONNECTED = 1;
+  EVENT_TASK_STARTED       = 2;
+  EVENT_TASK_COMPLETED     = 3;
+  EVENT_FINDING_NEW        = 4;
+  EVENT_OPERATOR_JOINED    = 5;
+  EVENT_OPERATOR_LEFT      = 6;
+  EVENT_SIBLING_CONNECTED  = 7;
+  EVENT_PLUGIN_LOADED      = 8;
+}
+
+message Event {
+  string    event_id    = 1;
+  EventType type        = 2;
+  string    agent_id    = 3;
+  string    payload     = 4;
+  int64     timestamp   = 5;
+  string    operator_id = 6;
+}
+
+// ── gRPC Services ────────────────────────────────────────────────
+
+service AgentService {
+  rpc Connect(stream AgentMetrics) returns (stream TaskRequest);
+  rpc StreamTaskOutput(stream TaskOutput) returns (stream TaskAck);
+  rpc CheckIn(BeaconCheckIn) returns (BeaconResponse);
+}
+
+message TaskAck {
+  string task_id  = 1;
+  bool   received = 2;
+}
+
+message BeaconCheckIn {
+  string              agent_id        = 1;
+  AgentMetrics        metrics         = 2;
+  repeated TaskOutput completed_tasks = 3;
+}
+
+message BeaconResponse {
+  repeated TaskRequest pending_tasks = 1;
+  BeaconConfig         config        = 2;
+}
+
+service OperatorService {
+  rpc Subscribe(SubscribeRequest)             returns (stream Event);
+  rpc DispatchTask(DispatchRequest)           returns (DispatchResponse);
+  rpc ListAgents(ListAgentsRequest)           returns (ListAgentsResponse);
+  rpc ValidateCommand(ValidateCommandRequest) returns (ValidateCommandResponse);
+  rpc GetSessions(GetSessionsRequest)         returns (GetSessionsResponse);
+  rpc GetFindings(GetFindingsRequest)         returns (GetFindingsResponse);
+}
+
+message SubscribeRequest { string operator_id = 1; }
+
+message DispatchRequest {
+  string          session_id     = 1;
+  TaskType        type           = 2;
+  repeated string args           = 3;
+  repeated string target_agents  = 4;
+  repeated string target_tags    = 5;
+  int64           timeout_sec    = 6;
+  string          operator_id    = 7;
+  bool            skip_defender  = 8;
+  bytes           payload        = 9;
+}
+
+message DispatchResponse {
+  repeated string task_ids        = 1;
+  int32           agent_count     = 2;
+  string          defender_warning = 3;
+}
+
+message ListAgentsRequest  {}
+message ListAgentsResponse { repeated AgentInfo agents = 1; }
+
+message GetSessionsRequest  { string status_filter = 1; }
+message GetSessionsResponse { repeated SessionInfo sessions = 1; }
+
+message SessionInfo {
+  string session_id    = 1;
+  string name          = 2;
+  string target        = 3;
+  string status        = 4;
+  string created_at    = 5;
+  int32  finding_count = 6;
+  int32  task_count    = 7;
+}
+
+message GetFindingsRequest {
+  string session_id      = 1;
+  string severity_filter = 2;
+}
+message GetFindingsResponse { repeated Finding findings = 1; }

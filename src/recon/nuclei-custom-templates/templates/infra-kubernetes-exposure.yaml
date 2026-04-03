@@ -1,0 +1,83 @@
+id: custom-2026-infra-001
+info:
+  name: Kubernetes API Exposure - Unauthenticated kubectl proxy Detection
+  author: SecurityTeam
+  severity: critical
+  description: |
+    Detects exposed Kubernetes API server:
+    1. Kubernetes API accessible without authentication
+    2. kubectl proxy left running on non-localhost
+    3. RBAC not properly configured
+    4. Service account tokens leaked
+    5. Cluster credentials in environment
+    
+    Detection method:
+    - Enumerate Kubernetes API endpoints
+    - Test unauthenticated access to cluster info
+    - Check for service account token availability
+    - Analyze pod security policies
+  
+  reference:
+    - https://kubernetes.io/docs/concepts/security/
+
+requests:
+  - method: GET
+    path: /api/v1
+    headers:
+      Accept: "application/json"
+    
+    matchers:
+      - type: word
+        part: body
+        words:
+          - '"kind":"APIResourceList"'
+          - '"groupVersion":"v1"'
+
+  - method: GET
+    path: /api/v1/nodes
+    headers:
+      Accept: "application/json"
+    
+    matchers:
+      - type: word
+        part: body
+        words:
+          - '"kind":"NodeList"'
+          - '"nodes"'
+
+  - method: GET
+    path: /api/v1/namespaces/default/secrets
+    headers:
+      Accept: "application/json"
+    
+    matchers:
+      - type: word
+        part: body
+        words:
+          - '"kind":"SecretList"'
+          - 'secret-token'
+
+  - method: POST
+    path: /api/v1/namespaces/default/pods
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {"name": "test"},
+        "spec": {"containers": [{"name": "test", "image": "alpine"}]}
+      }
+    
+    matchers:
+      - type: word
+        part: body
+        words:
+          - '"kind":"Pod"'
+          - '"status":"Pending"'
+
+tags:
+  - infrastructure
+  - kubernetes
+  - exposure
+  - container-security

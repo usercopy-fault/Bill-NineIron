@@ -1,0 +1,103 @@
+id: custom-2026-supply-chain-002
+info:
+  name: Dependency Version Confusion - SemVer Parsing Flaw Detection
+  author: SecurityTeam
+  severity: critical
+  description: |
+    Exploits SemVer parsing inconsistencies between package managers.
+    Different registries handle version specifiers differently:
+    - npm: 1.0.0-beta < 1.0.0
+    - pip: Different pre-release ordering
+    - Maven: Different SNAPSHOT handling
+    
+    This template detects when:
+    1. Package exists in private registry with lower version
+    2. Public registry has higher version (appears as upgrade)
+    3. Dependency resolution pulls public (malicious) version
+    
+    Behavioral detection via comparing resolution times and content hashes.
+  
+  reference:
+    - https://www.bleepingcomputer.com/news/security/npm-package-with-over-1-million-downloads-caught-carrying-malware/
+
+requests:
+  - method: GET
+    path: /registry/{{package_name}}
+    headers:
+      Accept: "application/json"
+      Registry-Type: "public"
+    
+    extractors:
+      - type: json
+        internal: true
+        name: public_versions
+        json:
+          - '.versions | keys'
+      - type: json
+        internal: true
+        name: latest_public
+        json:
+          - '.["dist-tags"].latest'
+
+  - method: POST
+    path: /_resolve/versions
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "package": "{{package_name}}",
+        "semver_specs": [
+          "^1.0.0",
+          "~1.0.0",
+          ">=1.0.0-alpha",
+          "1.0.0-*"
+        ]
+      }
+    
+    matchers:
+      - type: dsl
+        expressions:
+          # Check for version confusion where pre-release > release
+          - 'response_time > 200 AND response_time < 500'
+          - 'contains(body, "pre-release") AND contains(body, "selected")'
+        condition: all
+
+  - method: GET
+    path: /registry/{{package_name}}/{{latest_public}}/integrity
+    headers:
+      Accept: "application/json"
+    
+    extractors:
+      - type: regex
+        internal: true
+        name: hash_public
+        regex: '"sha1":"([a-f0-9]{40})"'
+
+  - method: POST
+    path: /analyze/dependency-tree
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "dependencies": {
+          "{{package_name}}": "^1.0.0"
+        }
+      }
+    
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "selected"
+        
+      - type: dsl
+        expressions:
+          # Hash mismatch indicates version confusion
+          - '!contains(body, hash_public)'
+        condition: all
+
+tags:
+  - supply-chain
+  - dependency-confusion
+  - version-parsing
+  - malicious-package

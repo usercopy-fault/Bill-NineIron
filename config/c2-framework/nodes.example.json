@@ -1,0 +1,50 @@
+{
+  "nodes": {
+    "controller": {
+      "hostname": "controller",
+      "user": "operator",
+      "ssh": "controller",
+      "tailscale": "100.64.0.10",
+      "lan": null,
+      "role": "primary",
+      "c2_port": 9800,
+      "callback_port": 9801,
+      "ollama": {
+        "host": "127.0.0.1",
+        "port": 11434,
+        "models": [
+          "model-name"
+        ]
+      },
+      "capabilities": [
+        "recon",
+        "c2-server"
+      ],
+      "status": "online"
+    },
+    "field-node": {
+      "hostname": "field-node",
+      "user": "operator",
+      "ssh": "field-node",
+      "tailscale": "100.64.0.20",
+      "lan": null,
+      "role": "mobile",
+      "c2_port": 9800,
+      "callback_port": 9801,
+      "ollama": null,
+      "capabilities": [
+        "mobile"
+      ],
+      "status": "offline"
+    }
+  },
+  "ollama_priority": [
+    "controller"
+  ],
+  "c2_primary": "controller",
+  "c2_secondary": "field-node",
+  "alert_chain": [
+    "controller",
+    "field-node"
+  ]
+}

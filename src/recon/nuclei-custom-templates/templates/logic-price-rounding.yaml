@@ -1,0 +1,62 @@
+id: custom-2026-logic-003
+info:
+  name: Price Manipulation via Decimal Rounding - Math Error Exploitation
+  author: SecurityTeam
+  severity: high
+  description: |
+    Exploits improper decimal rounding in pricing logic:
+    1. Pricing calculation: price * quantity
+    2. Rounding error due to floating point: 0.1 + 0.2 != 0.3
+    3. Create cart where total < sum of items
+    4. Exploit cumulative rounding across multiple transactions
+    
+    Detection method:
+    - Add items with prices containing decimal places
+    - Analyze total price calculation
+    - Check for rounding inconsistencies
+    - Test cumulative calculations
+
+requests:
+  - method: POST
+    path: /api/cart/add
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "item_id": "1",
+        "quantity": 3,
+        "price": "9.99"
+      }
+    
+    extractors:
+      - type: json
+        internal: true
+        name: item_subtotal
+        json:
+          - '.subtotal'
+
+  - method: GET
+    path: /api/cart/total
+    
+    extractors:
+      - type: json
+        internal: true
+        name: cart_total
+        json:
+          - '.total'
+
+  - method: GET
+    path: /api/checkout
+    
+    matchers:
+      - type: dsl
+        expressions:
+          # Cart total less than item subtotals (rounding error)
+          - 'tonumber(cart_total) < (tonumber(item_subtotal) * items_count)'
+        condition: all
+
+tags:
+  - logic-flaw
+  - pricing-error
+  - financial-vulnerability
+  - math-error

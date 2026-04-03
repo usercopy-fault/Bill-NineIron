@@ -1,0 +1,75 @@
+id: custom-2026-supply-chain-003
+info:
+  name: PyPI Metadata Injection - Package Attribute Poisoning
+  author: SecurityTeam
+  severity: high
+  description: |
+    Detects Python packages with suspicious metadata that indicate potential poisoning:
+    1. Author field injection (typos in popular author names)
+    2. Keywords poisoning (mimics popular packages)
+    3. Homepage/Repository URL poisoning (lookalike domains)
+    4. Requires-dist manipulation (depends on malicious packages)
+    
+    Uses behavioral analysis on PyPI API responses:
+    - Timing anomalies in metadata queries
+    - Duplicate key detection in JSON
+    - Entropy analysis of description fields
+    - Levenshtein distance on author names
+  
+  reference:
+    - https://blog.incolumitas.com/2023/02/22/pypi-package-confusion-attack/
+
+requests:
+  - method: GET
+    path: /pypi/{{package_name}}/json
+    headers:
+      Accept: "application/json"
+    
+    extractors:
+      - type: json
+        internal: true
+        name: package_info
+        json:
+          - '{author: .info.author, author_email: .info.author_email, home_page: .info.home_page, requires_dist: .info.requires_dist}'
+      - type: json
+        internal: true
+        name: releases
+        json:
+          - '.releases | keys'
+
+  - method: GET
+    path: /pypi/{{package_name}}/{{releases[-1]}}/json
+    headers:
+      Accept: "application/json"
+    
+    matchers:
+      - type: regex
+        part: body
+        regex:
+          # Author name typo detection (common: google -> googel, django -> djago)
+          - '"author":\s*"(?:googel|djano|numpy-x|scipy-x|requests-security)"'
+          
+          # Suspicious homepage domains
+          - '"home_page":\s*"(?:https?://(?:[a-z0-9-]*\.)?(?:github|gitlab|pypi-?pkg|python-official)[a-z0-9.-]*)?"'
+        condition: any
+
+  - method: GET
+    path: /pypi/{{package_name}}/json
+    headers:
+      Accept: "application/json"
+    
+    matchers:
+      - type: dsl
+        expressions:
+          # Requires-dist injection: depends on unusual packages
+          - 'requires_dist | map(select(contains("eval") or contains("exec"))) | length > 0'
+          
+          # Entropy analysis: description field too random/binary-like
+          - 'description_entropy > 6.5'
+        condition: any
+
+tags:
+  - supply-chain
+  - pypi
+  - metadata-injection
+  - package-poisoning

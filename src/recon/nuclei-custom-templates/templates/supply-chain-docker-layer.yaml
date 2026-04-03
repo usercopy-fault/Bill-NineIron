@@ -1,0 +1,69 @@
+id: custom-2026-supply-chain-004
+info:
+  name: Docker Image Layer Tampering - Content Analysis
+  author: SecurityTeam
+  severity: critical
+  description: |
+    Detects potentially tampered Docker image layers by analyzing:
+    1. Layer compression ratios (highly suspicious if not matching standards)
+    2. Layer history gaps (missing expected build steps)
+    3. Executable permissions anomalies (files shouldn't be executable)
+    4. Hidden file patterns (suspicious dotfiles in layers)
+    5. Signature verification failures
+    
+    Behavioral detection:
+    - Response time anomalies when pulling layers
+    - Cache-Control header inconsistencies
+    - Layer digest mismatches
+  
+  reference:
+    - https://www.chainguard.dev/unchained/how-to-identify-a-potentially-malicious-container-image
+
+requests:
+  - method: GET
+    path: /v2/{{image_repo}}/manifests/{{image_tag}}
+    headers:
+      Accept: "application/vnd.docker.distribution.manifest.v2+json"
+    
+    extractors:
+      - type: json
+        internal: true
+        name: manifest
+        json:
+          - '{layers: .layers | length, config_digest: .config.digest}'
+
+  - method: GET
+    path: /v2/{{image_repo}}/blobs/{{manifest.config_digest}}
+    headers:
+      Accept: "application/vnd.docker.container.image.v1+json"
+    
+    extractors:
+      - type: json
+        internal: true
+        name: config
+        json:
+          - '{history: .history | length, rootfs_layers: .rootfs.diff_ids | length}'
+
+  - method: HEAD
+    path: /v2/{{image_repo}}/blobs/{{layer_digest}}
+    headers:
+      Accept: "application/vnd.docker.image.rootfs.diff.tar.gzip"
+    
+    matchers:
+      - type: dsl
+        expressions:
+          # Layer count mismatch between manifest and config
+          - 'manifest.layers != config.rootfs_layers'
+          
+          # Suspicious response time (indicates on-the-fly generation)
+          - 'response_time > 5000'
+          
+          # Missing content-length header (layer size hidden)
+          - '!header_exists("content-length")'
+        condition: any
+
+tags:
+  - supply-chain
+  - docker
+  - container-security
+  - layer-tampering

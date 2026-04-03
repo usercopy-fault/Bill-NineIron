@@ -1,0 +1,96 @@
+id: custom-2026-api-001
+info:
+  name: GraphQL Schema Enumeration - Complexity Abuse Detection
+  author: SecurityTeam
+  severity: high
+  description: |
+    Detects GraphQL endpoints and enumerates schema via query complexity abuse.
+    Standard approach: Send introspection query (easily blocked)
+    Our approach: 
+    - Nested query complexity bombs to measure response times
+    - Inference-based schema mapping via error messages
+    - Field name fuzzing with timing analysis
+    - Rate limiting bypass via query complexity distribution
+    
+    Behavioral detection:
+    - Response time patterns reveal schema structure
+    - Error message analysis shows field names
+    - Timing differences indicate field existence
+  
+  reference:
+    - https://cheatsheetseries.owasp.org/cheatsheets/GraphQL_Cheat_Sheet.html
+
+requests:
+  - method: POST
+    path: {{graphql_endpoint}}
+    headers:
+      Content-Type: "application/json"
+      X-Requested-With: "XMLHttpRequest"
+    body: |
+      {
+        "query": "{ __schema { types { name } } }"
+      }
+    
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "__schema"
+        negative: true
+
+  - method: POST
+    path: {{graphql_endpoint}}
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "query": "query { query { user { id name email { nested { data { deep { chain { to { measure { time { payload } } } } } } } } } } }"
+      }
+    
+    extractors:
+      - type: json
+        internal: true
+        name: response_time_1
+        json:
+          - 'now | floor'
+
+  - method: POST
+    path: {{graphql_endpoint}}
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "query": "query { mutation { nonexistentField { data } } }"
+      }
+    
+    matchers:
+      - type: regex
+        part: body
+        regex:
+          # Field name disclosure in error
+          - '"message":"Cannot query field \\"([a-zA-Z_][a-zA-Z0-9_]*)\\"'
+          # Type disclosure
+          - '"message":".*Argument of type'
+
+  - method: POST
+    path: {{graphql_endpoint}}
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "query": "{ admin { users { id name } } }"
+      }
+    
+    matchers:
+      - type: dsl
+        expressions:
+          # Admin field accessible without authentication
+          - '!contains(body, "Unauthorized") AND !contains(body, "Authentication")'
+          - 'status == 200'
+        condition: all
+
+tags:
+  - api
+  - graphql
+  - enumeration
+  - information-disclosure

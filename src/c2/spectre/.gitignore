@@ -1,0 +1,10 @@
+bin/
+*.db
+certs/
+sessions/
+evidence/
+reports/
+*.local
+.env
+__pycache__/
+*.pyc

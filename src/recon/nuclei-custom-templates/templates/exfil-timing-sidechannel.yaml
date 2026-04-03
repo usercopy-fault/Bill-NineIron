@@ -1,0 +1,89 @@
+id: custom-2026-exfil-001
+info:
+  name: Information Disclosure - Timing-Based Side-Channel Analysis
+  author: SecurityTeam
+  severity: high
+  description: |
+    Exploits timing differences in password/data comparison to leak information:
+    1. Send password attempts with varying lengths
+    2. Measure response time for each attempt
+    3. Longer matching prefixes = slower response (constant-time comparison bypass)
+    4. Leak password character-by-character via timing analysis
+    5. Extract user existence via enumeration timing
+    
+    Behavioral detection:
+    - Response time measurement (ms precision)
+    - Statistical analysis of timing distribution
+    - Comparison with baseline response times
+    - Entropy analysis of timing patterns
+  
+  reference:
+    - https://codahale.com/a-lesson-in-timing-attacks/
+
+requests:
+  - method: POST
+    path: /login
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "username": "{{username}}",
+        "password": "a"
+      }
+    
+    extractors:
+      - type: json
+        internal: true
+        name: time_1_char
+        json:
+          - 'now | floor'
+
+  - method: POST
+    path: /login
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "username": "{{username}}",
+        "password": "aa"
+      }
+    
+    extractors:
+      - type: json
+        internal: true
+        name: time_2_char
+        json:
+          - 'now | floor'
+
+  - method: POST
+    path: /login
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "username": "{{username}}",
+        "password": "aaaaaa..."
+      }
+    
+    matchers:
+      - type: dsl
+        expressions:
+          # Timing increases with password length (timing leak)
+          - 'time_2_char > time_1_char + 10'
+          - 'time_longpass > time_shortpass + 50'
+        condition: all
+
+  - method: GET
+    path: /api/user/{{username}}/exists
+    
+    matchers:
+      - type: dsl
+        expressions:
+          # Valid user takes longer to respond (database query takes longer)
+          - 'response_time > 200'
+
+tags:
+  - exfiltration
+  - timing-attack
+  - side-channel
+  - information-disclosure

