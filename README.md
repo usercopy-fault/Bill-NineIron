@@ -1,15 +1,57 @@
 # Bill-NineIron
 
-```text
- ___ ___ _    _      _  _ ___ _  _ ___ ___ ___  ___  _  _
-| _ )_ _| |  | |    | \| |_ _| \| | __|_ _| _ \/ _ \| \| |
-| _ \| || |__| |__  | .` || || .` | _| | ||   / (_) | .` |
-|___/___|____|____| |_|\_|___|_|\_|___|___|_|_\\___/|_|\_|
-```
 
-`Bill-NineIron | BI9`
+ ____?Sexy?Sexy
+ ___y?Sexy?Sexy?
+ ___?Sexy?Sexy?S
+ ___?Sexy?Sexy?S
+ __?Sexy?Sexy?Se
+ _?Sexy?Sexy?Se
+ _?Sexy?Sexy?Se
+ _?Sexy?Sexy?Sexy?
+ ?Sexy?Sexy?Sexy?Sexy
+ ?Sexy?Sexy?Sexy?Sexy?Se
+ ?Sexy?Sexy?Sexy?Sexy?Sex
+ _?Sexy?__?Sexy?Sexy?Sex
+ ___?Sex____?Sexy?Sexy?
+ ___?Sex_____?Sexy?Sexy
+ ___?Sex_____?Sexy?Sexy
+ ____?Sex____?Sexy?Sexy
+ _____?Se____?Sexy?Sex
+ ______?Se__?Sexy?Sexy
+ _______?Sexy?Sexy?Sex
+ ________?Sexy?Sexy?sex
+ _______?Sexy?Sexy?Sexy?Se
+ _______?Sexy?Sexy?Sexy?Sexy?
+ _______?Sexy?Sexy?Sexy?Sexy?Sexy
+ _______?Sexy?Sexy?Sexy?Sexy?Sexy?S
+ ________?Sexy?Sexy____?Sexy?Sexy?se
+ _________?Sexy?Se_______?Sexy?Sexy?
+ _________?Sexy?Se_____?Sexy?Sexy?
+ _________?Sexy?S____?Sexy?Sexy
+ _________?Sexy?S_?Sexy?Sexy
+ ________?Sexy?Sexy?Sexy
+ ________?Sexy?Sexy?S
+ ________?Sexy?Sexy
+ _______?Sexy?Se
+ _______?Sexy?
+ ______?Sexy?
+ ______?Sexy?
+ ______?Sexy?
+ ______?Sexy
+ ______?Sexy
+ _______?Sex
+ _______?Sex
+ _______?Sex
+ ______?Sexy
+ ______?Sexy
+ _______Sexy
+ _______ Sexy?
+ ________SexY
 
-*precision offensive framework*
+
+
+*pretty, very pretty, precision offensive framework*
 
 `target lock with country-club manners`
 
@@ -19,10 +61,6 @@ Flagship framework for deliberate strike-path engineering, controlled execution,
 ## Philosophy
 BI9 is not volume. It is angle, timing, and a single hard swing through the right weakness.
 
-## Logo Concept
-- Visual identity: golf iron silhouette intersecting a crosshair and a narrow strike arc.
-- Color scheme: matte black, chrome steel, neon green.
-- Symbolic meaning: precision impact delivered with disciplined follow-through.
 
 ## Structure
 - `src/`
@@ -36,6 +74,9 @@ git clone https://github.com/usercopy-fault/Bill-NineIron.git
 cd Bill-NineIron
 find . -maxdepth 2 -type d | sort
 ```
+## # ######  ###
+###  $Author ## #
+############# #
+ ### Kansas ##
+############
 
-## Author
-SnakeBoot-Andrw (SBAnd)
